@@ -50,7 +50,7 @@ func main() {
 		decrypt               = flag.Bool("with-decryption", false, "Will attempt to decrypt the parameter, and set the env var as plaintext")
 		nofail                = flag.Bool("no-fail", false, "Don't fail if error retrieving parameter")
 		profile               = flag.String("aws-profile", "default", "Use this AWS profile")
-		region                = flag.String("aws-region", "", "Use this AWS region")
+		region                = flag.String("aws-region", "us-east-1", "Use this AWS region")
 		accessKeyId           = flag.String("aws-key", "", "Use this AWS access key instead of env vars or credentials file")
 		secretAccessKey       = flag.String("aws-secret", "", "Use this AWS secret key instead of env vars or credentials file")
 		sharedCredentialsFile = flag.String("aws-credentials", "", "Use this AWS credentails file instead of env vars or credentials file")
@@ -111,11 +111,10 @@ func (c *lazySSMClient) GetParameters(input *ssm.GetParametersInput) (*ssm.GetPa
 }
 
 func (c *lazySSMClient) awsSession() (*session.Session, error) {
-
 	var creds *credentials.Credentials
-	if c.accessKeyId != nil && c.secretAccessKey != nil {
+	if *c.accessKeyId != "" && *c.secretAccessKey != "" {
 		creds = credentials.NewStaticCredentials(*c.accessKeyId, *c.secretAccessKey, "")
-	} else if c.sharedCredentialsFile != nil {
+	} else if *c.sharedCredentialsFile != "" {
 		creds = credentials.NewSharedCredentials(*c.sharedCredentialsFile, *c.profile)
 	} else {
 		creds = credentials.NewEnvCredentials()
