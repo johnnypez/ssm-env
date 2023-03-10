@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ssm"
@@ -45,9 +46,14 @@ var TemplateFuncs = template.FuncMap{
 
 func main() {
 	var (
-		template = flag.String("template", DefaultTemplate, "The template used to determine what the SSM parameter name is for an environment variable. When this template returns an empty string, the env variable is not an SSM parameter")
-		decrypt  = flag.Bool("with-decryption", false, "Will attempt to decrypt the parameter, and set the env var as plaintext")
-		nofail   = flag.Bool("no-fail", false, "Don't fail if error retrieving parameter")
+		template              = flag.String("template", DefaultTemplate, "The template used to determine what the SSM parameter name is for an environment variable. When this template returns an empty string, the env variable is not an SSM parameter")
+		decrypt               = flag.Bool("with-decryption", false, "Will attempt to decrypt the parameter, and set the env var as plaintext")
+		nofail                = flag.Bool("no-fail", false, "Don't fail if error retrieving parameter")
+		profile               = flag.String("aws-profile", "default", "Use this AWS profile")
+		region                = flag.String("aws-region", "", "Use this AWS region")
+		accessKeyId           = flag.String("aws-key", "", "Use this AWS access key instead of env vars or credentials file")
+		secretAccessKey       = flag.String("aws-secret", "", "Use this AWS secret key instead of env vars or credentials file")
+		sharedCredentialsFile = flag.String("aws-credentials", "", "Use this AWS credentails file instead of env vars or credentials file")
 	)
 	flag.Parse()
 	args := flag.Args()
@@ -67,8 +73,14 @@ func main() {
 	e := &expander{
 		batchSize: defaultBatchSize,
 		t:         t,
-		ssm:       &lazySSMClient{},
-		os:        os,
+		ssm: &lazySSMClient{
+			region:                region,
+			profile:               profile,
+			accessKeyId:           accessKeyId,
+			secretAccessKey:       secretAccessKey,
+			sharedCredentialsFile: sharedCredentialsFile,
+		},
+		os: os,
 	}
 	must(e.expandEnviron(*decrypt, *nofail))
 	must(syscall.Exec(path, args[0:], os.Environ()))
@@ -78,7 +90,12 @@ func main() {
 // SSM client are not actually initialized until GetParameters is called for
 // the first time.
 type lazySSMClient struct {
-	ssm ssmClient
+	ssm                   ssmClient
+	region                *string
+	profile               *string
+	accessKeyId           *string
+	secretAccessKey       *string
+	sharedCredentialsFile *string
 }
 
 func (c *lazySSMClient) GetParameters(input *ssm.GetParametersInput) (*ssm.GetParametersOutput, error) {
@@ -94,7 +111,19 @@ func (c *lazySSMClient) GetParameters(input *ssm.GetParametersInput) (*ssm.GetPa
 }
 
 func (c *lazySSMClient) awsSession() (*session.Session, error) {
+
+	var creds *credentials.Credentials
+	if c.accessKeyId != nil && c.secretAccessKey != nil {
+		creds = credentials.NewStaticCredentials(*c.accessKeyId, *c.secretAccessKey, "")
+	} else if c.sharedCredentialsFile != nil {
+		creds = credentials.NewSharedCredentials(*c.sharedCredentialsFile, *c.profile)
+	} else {
+		creds = credentials.NewEnvCredentials()
+	}
+
 	sess, err := session.NewSession(&aws.Config{
+		Region:                        c.region,
+		Credentials:                   creds,
 		CredentialsChainVerboseErrors: aws.Bool(true),
 	})
 	if err != nil {
