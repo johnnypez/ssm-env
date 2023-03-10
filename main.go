@@ -111,20 +111,23 @@ func (c *lazySSMClient) GetParameters(input *ssm.GetParametersInput) (*ssm.GetPa
 }
 
 func (c *lazySSMClient) awsSession() (*session.Session, error) {
-	var creds *credentials.Credentials
-	if *c.accessKeyId != "" && *c.secretAccessKey != "" {
-		creds = credentials.NewStaticCredentials(*c.accessKeyId, *c.secretAccessKey, "")
-	} else if *c.sharedCredentialsFile != "" {
-		creds = credentials.NewSharedCredentials(*c.sharedCredentialsFile, *c.profile)
-	} else {
-		creds = credentials.NewEnvCredentials()
+
+	config := &aws.Config{
+		CredentialsChainVerboseErrors: aws.Bool(true),
 	}
 
-	sess, err := session.NewSession(&aws.Config{
-		Region:                        c.region,
-		Credentials:                   creds,
-		CredentialsChainVerboseErrors: aws.Bool(true),
-	})
+	if *c.region != "" {
+		config = config.WithRegion(*c.region)
+	}
+
+	if *c.accessKeyId != "" && *c.secretAccessKey != "" {
+		config = config.WithCredentials(credentials.NewStaticCredentials(*c.accessKeyId, *c.secretAccessKey, ""))
+	} else if *c.sharedCredentialsFile != "" {
+		config = config.WithCredentials(credentials.NewSharedCredentials(*c.sharedCredentialsFile, *c.profile))
+	}
+
+	sess, err := session.NewSession(config)
+
 	if err != nil {
 		return nil, err
 	}
