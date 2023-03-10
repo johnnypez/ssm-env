@@ -53,6 +53,36 @@ OLD_SECRET=super_secret_v1
 NEW_SECRET=super_secret_v2
 ```
 
+## Configuration
+
+`ssm-env` uses aws-sdk's default chain of credential providers to resolve credentials from your env, shared credential file
+and EC2 Instance Roles.
+
+You can, however, pass credential flags if necessary.
+
+```
+-aws-credentials string
+      Use this AWS credentails file instead of env vars or credentials file
+
+-aws-profile string
+      Use this AWS profile (default "default")
+
+-aws-key string
+      Use this AWS access key instead of env vars or credentials file
+
+-aws-secret string
+      Use this AWS secret key instead of env vars or credentials file
+
+-aws-region string
+      Use this AWS region
+```
+
+e.g.
+
+```console
+$ ssm-env -aws-credentials=/run/secret/credentials -aws-region=eu-west-1 env
+```
+
 ## Usage with Docker
 
 A common use case is to use `ssm-env` as a Docker ENTRYPOINT. You can copy and paste the following into the top of a Dockerfile:
